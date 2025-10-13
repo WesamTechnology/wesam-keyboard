@@ -13,6 +13,7 @@ class MyKeyboardService : InputMethodService() {
 
     private var isArabic = true
     private var isSymbols = false
+    private var isTajweed = false // متغير لتتبع حالة لوحة التجويد
 
     private val arabicKeys = arrayOf(
         arrayOf("د", "ج", "ح", "خ", "ه", "ع", "غ", "ف", "ق", "ث", "ص", "ض"),
@@ -26,11 +27,26 @@ class MyKeyboardService : InputMethodService() {
         arrayOf("Z", "X", "C", "V", "B", "N", "M", "⌫")
     )
 
-    private val symbolsKeys = arrayOf(
+    // ✅ تم نقل رمز الريال وإضافة رموز عملات ورموز أخرى
+    private val symbolsKeys: Array<Array<String>> = arrayOf(
         arrayOf("!", "@", "#", "\$", "%", "^", "&", "*", "(", ")"),
         arrayOf("-", "_", "=", "+", "[", "]", "{", "}", "/", "\\"),
-        arrayOf(".", ",", "؟", "!", ":", ";", "\"", "'", "…", "°", "⌫")
+        arrayOf(".", ",", "؟", "!", ":", ";", "\"", "'", "…", "°", "⌫"),
+        arrayOf("﷼", "€", "£", "¥", "<", ">", "|", "™", "©", "®")
     )
+
+    // ✅ تم تحديث رموز الوقف (م، ج) برموزها الصحيحة وإضافة رموز جديدة
+    private val tajweedKeys: Array<Array<String>> = arrayOf(
+        // الصف الأول: التشكيل الأساسي
+        arrayOf("َ", "ً", "ُ", "ٌ", "ِ", "ٍ", "ّ", "ْ", "ٓ"),
+        // الصف الثاني: علامات المد والضبط
+        arrayOf("ٰ", "ٖ", "ٗ", "ٔ", "ٕ", "ۡ", "ـ", "ࣰ", "ࣱ", "ࣲ"),
+        // الصف الثالث: رموز الوقف (تم استخدام الرموز المخصصة للوقف)
+        arrayOf("⌫", "ۘ", "ۚ", "ۛ", "ۖ", "ۗ", "ۙ", "࣢"), // م، ج، ..صلي، ..قلي، لا، علامة تعانق الوقف، علامة الإشمام
+        // الصف الرابع: رموز الآيات والسجدة وغيرها
+        arrayOf("۩", "۝", "۞", "﴾", "﴿", "ﷺ", "ﷲ", "﷽")
+    )
+
 
     private fun isActivated(context: Context): Boolean {
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
@@ -119,6 +135,7 @@ class MyKeyboardService : InputMethodService() {
         langButton.setOnClickListener {
             isArabic = !isArabic
             isSymbols = false
+            isTajweed = false
             langButton.text = if (isArabic) "🌐 EN" else "🌐 AR"
             updateKeyboard(mainLayout)
         }
@@ -130,6 +147,18 @@ class MyKeyboardService : InputMethodService() {
         symbolButton.textSize = 16f
         symbolButton.setOnClickListener {
             isSymbols = !isSymbols
+            isTajweed = false
+            updateKeyboard(mainLayout)
+        }
+
+        val tajweedButton = Button(this)
+        tajweedButton.text = "\uD83D\uDD4B"
+        tajweedButton.setBackgroundColor(0xFF4A6FA5.toInt())
+        tajweedButton.setTextColor(0xFFFFFFFF.toInt())
+        tajweedButton.textSize = 16f
+        tajweedButton.setOnClickListener {
+            isTajweed = !isTajweed
+            isSymbols = false
             updateKeyboard(mainLayout)
         }
 
@@ -137,6 +166,7 @@ class MyKeyboardService : InputMethodService() {
         topBar.addView(copyButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         topBar.addView(langButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f))
         topBar.addView(symbolButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.4f))
+        topBar.addView(tajweedButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.6f))
         mainLayout.addView(topBar)
 
         val keysLayout = createKeysLayout()
@@ -155,7 +185,7 @@ class MyKeyboardService : InputMethodService() {
         layout.orientation = LinearLayout.VERTICAL
         layout.tag = "keysLayout"
 
-        if (!isSymbols) {
+        if (!isSymbols && !isTajweed) {
             val numbersRow = LinearLayout(this)
             numbersRow.orientation = LinearLayout.HORIZONTAL
             numbersRow.gravity = Gravity.CENTER
@@ -166,6 +196,7 @@ class MyKeyboardService : InputMethodService() {
         }
 
         val keys = when {
+            isTajweed -> tajweedKeys
             isSymbols -> symbolsKeys
             isArabic -> arabicKeys
             else -> englishKeys
@@ -175,7 +206,7 @@ class MyKeyboardService : InputMethodService() {
             val rowLayout = LinearLayout(this)
             rowLayout.orientation = LinearLayout.HORIZONTAL
             rowLayout.gravity = Gravity.CENTER
-            rowLayout.layoutDirection = if (isArabic) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+            rowLayout.layoutDirection = if (isArabic || isTajweed) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
             for (key in row) {
                 if (key == "⌫") {
                     rowLayout.addView(createDeleteButton())
@@ -199,7 +230,11 @@ class MyKeyboardService : InputMethodService() {
         }
 
         val space = Button(this)
-        space.text = if (isSymbols) "—" else "مسافة"
+        space.text = when {
+            isTajweed -> " "
+            isSymbols -> "—"
+            else -> "مسافة"
+        }
         space.setBackgroundColor(0xFFFFFFFF.toInt())
         space.textSize = 18f
         space.setOnClickListener { currentInputConnection.commitText(" ", 1) }
@@ -274,7 +309,6 @@ class MyKeyboardService : InputMethodService() {
         return button
     }
 
-    // ✅ تم تعديل هذه الدالة لمنع الكيبورد من الاختفاء
     private fun showCharVariantsPopup(anchorView: View, variants: Array<String>) {
         val popupView = LinearLayout(this)
         popupView.orientation = LinearLayout.HORIZONTAL
@@ -285,7 +319,6 @@ class MyKeyboardService : InputMethodService() {
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT)
 
-        // ✅ السطر الأهم: هذا يمنع النافذة المنبثقة من سرقة التركيز
         popupWindow.isFocusable = false
         popupWindow.isTouchable = true
 
@@ -312,8 +345,23 @@ class MyKeyboardService : InputMethodService() {
         mainLayout.addView(newKeysLayout)
     }
 
+    // ✅ تم تحديث الدالة لتشمل رموز الوقف الجديدة ضمن الاستثناءات
     private fun onKeyPress(key: String) {
-        currentInputConnection?.commitText(key, 1)
+        val ic = currentInputConnection ?: return
+
+        // قائمة الرموز التي لا تعتبر علامات مركّبة (لا تدمج مع الحرف)
+        val nonCombiningSymbols = arrayOf("۩", "۝", "۞", "﴾", "﴿", "ﷺ", "ﷲ", "﷽")
+
+        // أي مفتاح في لوحة التجويد ليس من ضمن القائمة أعلاه، يعتبر علامة مركّبة
+        val isCombiningMark = tajweedKeys.any { row -> row.contains(key) } && !nonCombiningSymbols.contains(key)
+
+        if (isCombiningMark) {
+            // أدخل العلامة بدون تحريك المؤشر لتدمج مع الحرف السابق
+            ic.commitText(key, 0)
+        } else {
+            // أدخل الحرف أو الرمز العادي مع تحريك المؤشر
+            ic.commitText(key, 1)
+        }
     }
 
     private fun pasteWordByWord() {
