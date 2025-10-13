@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:background="@color/keyboard_bg"
+    android:padding="8dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btnPaste"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📋 لصق النص"
+            android:background="@drawable/key_background"
+            android:textColor="@android:color/white" />
+
+        <Button
+            android:id="@+id/btnLang"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🌐 اللغة"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/key_background"
+            android:textColor="@android:color/white" />
+    </LinearLayout>
+
+    <GridLayout
+        android:id="@+id/keysLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:columnCount="10"
+        android:orientation="horizontal"
+        android:layout_marginTop="10dp" />
+</LinearLayout>
