@@ -4,6 +4,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.inputmethodservice.InputMethodService
+import android.graphics.Color
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.InputConnection
@@ -13,7 +14,11 @@ class MyKeyboardService : InputMethodService() {
 
     private var isArabic = true
     private var isSymbols = false
-    private var isTajweed = false // متغير لتتبع حالة لوحة التجويد
+    private var isTajweed = false
+    private var isCaps = false // متغير لتتبع حالة الأحرف الكبيرة
+
+    // ✅ متغير لتخزين العرض الرئيسي للكيبورد للوصول إليه لاحقًا
+    private var mainKeyboardView: LinearLayout? = null
 
     private val arabicKeys = arrayOf(
         arrayOf("د", "ج", "ح", "خ", "ه", "ع", "غ", "ف", "ق", "ث", "ص", "ض"),
@@ -21,13 +26,18 @@ class MyKeyboardService : InputMethodService() {
         arrayOf("⌫", "ظ", "ز", "و", "ة", "ى", "لا", "ر", "ؤ", "ئ", "ء", "ذ")
     )
 
-    private val englishKeys = arrayOf(
+    private val englishKeysUpper = arrayOf(
         arrayOf("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"),
         arrayOf("A", "S", "D", "F", "G", "H", "J", "K", "L"),
-        arrayOf("Z", "X", "C", "V", "B", "N", "M", "⌫")
+        arrayOf("⬆", "Z", "X", "C", "V", "B", "N", "M", "⌫")
     )
 
-    // ✅ تم نقل رمز الريال وإضافة رموز عملات ورموز أخرى
+    private val englishKeysLower = arrayOf(
+        arrayOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
+        arrayOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
+        arrayOf("⬆", "z", "x", "c", "v", "b", "n", "m", "⌫")
+    )
+
     private val symbolsKeys: Array<Array<String>> = arrayOf(
         arrayOf("!", "@", "#", "\$", "%", "^", "&", "*", "(", ")"),
         arrayOf("-", "_", "=", "+", "[", "]", "{", "}", "/", "\\"),
@@ -35,15 +45,10 @@ class MyKeyboardService : InputMethodService() {
         arrayOf("﷼", "€", "£", "¥", "<", ">", "|", "™", "©", "®")
     )
 
-    // ✅ تم تحديث رموز الوقف (م، ج) برموزها الصحيحة وإضافة رموز جديدة
     private val tajweedKeys: Array<Array<String>> = arrayOf(
-        // الصف الأول: التشكيل الأساسي
         arrayOf("َ", "ً", "ُ", "ٌ", "ِ", "ٍ", "ّ", "ْ", "ٓ"),
-        // الصف الثاني: علامات المد والضبط
         arrayOf("ٰ", "ٖ", "ٗ", "ٔ", "ٕ", "ۡ", "ـ", "ࣰ", "ࣱ", "ࣲ"),
-        // الصف الثالث: رموز الوقف (تم استخدام الرموز المخصصة للوقف)
-        arrayOf("⌫", "ۘ", "ۚ", "ۛ", "ۖ", "ۗ", "ۙ", "࣢"), // م، ج، ..صلي، ..قلي، لا، علامة تعانق الوقف، علامة الإشمام
-        // الصف الرابع: رموز الآيات والسجدة وغيرها
+        arrayOf("⌫", "ۘ", "ۚ", "ۛ", "ۖ", "ۗ", "ۙ", "࣢"),
         arrayOf("۩", "۝", "۞", "﴾", "﴿", "ﷺ", "ﷲ", "﷽")
     )
 
@@ -55,7 +60,9 @@ class MyKeyboardService : InputMethodService() {
 
     override fun onCreateInputView(): View {
         if (!isActivated(this)) return createLockedView()
-        return createMainKeyboardView()
+        isCaps = false
+        mainKeyboardView = createMainKeyboardView()
+        return mainKeyboardView!!
     }
 
     private fun createLockedView(): View {
@@ -97,7 +104,7 @@ class MyKeyboardService : InputMethodService() {
         return layout
     }
 
-    private fun createMainKeyboardView(): View {
+    private fun createMainKeyboardView(): LinearLayout {
         val mainLayout = LinearLayout(this)
         mainLayout.orientation = LinearLayout.VERTICAL
         mainLayout.setBackgroundColor(0xFFF6F8FA.toInt())
@@ -136,6 +143,7 @@ class MyKeyboardService : InputMethodService() {
             isArabic = !isArabic
             isSymbols = false
             isTajweed = false
+            isCaps = false
             langButton.text = if (isArabic) "🌐 EN" else "🌐 AR"
             updateKeyboard(mainLayout)
         }
@@ -199,7 +207,8 @@ class MyKeyboardService : InputMethodService() {
             isTajweed -> tajweedKeys
             isSymbols -> symbolsKeys
             isArabic -> arabicKeys
-            else -> englishKeys
+            isCaps -> englishKeysUpper
+            else -> englishKeysLower
         }
 
         for (row in keys) {
@@ -208,10 +217,10 @@ class MyKeyboardService : InputMethodService() {
             rowLayout.gravity = Gravity.CENTER
             rowLayout.layoutDirection = if (isArabic || isTajweed) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
             for (key in row) {
-                if (key == "⌫") {
-                    rowLayout.addView(createDeleteButton())
-                } else {
-                    rowLayout.addView(makeKeyButton(key))
+                when (key) {
+                    "⌫" -> rowLayout.addView(createDeleteButton())
+                    "⬆" -> rowLayout.addView(createShiftButton())
+                    else -> rowLayout.addView(makeKeyButton(key))
                 }
             }
             layout.addView(rowLayout)
@@ -286,6 +295,31 @@ class MyKeyboardService : InputMethodService() {
         return delete
     }
 
+    private fun createShiftButton(): Button {
+        val shiftButton = Button(this)
+        shiftButton.text = "⬆"
+        shiftButton.textSize = 18f
+
+        if (isCaps) {
+            shiftButton.setBackgroundColor(0xFF4A6FA5.toInt())
+            shiftButton.setTextColor(Color.WHITE)
+        } else {
+            shiftButton.setBackgroundColor(0xFFFFFFFF.toInt())
+            shiftButton.setTextColor(Color.BLACK)
+        }
+
+        shiftButton.setOnClickListener {
+            isCaps = !isCaps
+            // ✅ تم التصحيح هنا: استدعاء دالة التحديث باستخدام المتغير الذي يحمل العرض الرئيسي
+            mainKeyboardView?.let { updateKeyboard(it) }
+        }
+
+        val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        params.setMargins(4, 4, 4, 4)
+        shiftButton.layoutParams = params
+        return shiftButton
+    }
+
     private fun makeKeyButton(key: String): Button {
         val button = Button(this)
         button.text = key
@@ -293,6 +327,7 @@ class MyKeyboardService : InputMethodService() {
         button.setTextColor(0xFF1B1B1B.toInt())
         button.setBackgroundColor(0xFFFFFFFF.toInt())
         button.setPadding(8, 16, 8, 16)
+        button.isAllCaps = false
 
         if (key == "ا") {
             button.setOnLongClickListener {
@@ -345,21 +380,15 @@ class MyKeyboardService : InputMethodService() {
         mainLayout.addView(newKeysLayout)
     }
 
-    // ✅ تم تحديث الدالة لتشمل رموز الوقف الجديدة ضمن الاستثناءات
     private fun onKeyPress(key: String) {
         val ic = currentInputConnection ?: return
 
-        // قائمة الرموز التي لا تعتبر علامات مركّبة (لا تدمج مع الحرف)
         val nonCombiningSymbols = arrayOf("۩", "۝", "۞", "﴾", "﴿", "ﷺ", "ﷲ", "﷽")
-
-        // أي مفتاح في لوحة التجويد ليس من ضمن القائمة أعلاه، يعتبر علامة مركّبة
         val isCombiningMark = tajweedKeys.any { row -> row.contains(key) } && !nonCombiningSymbols.contains(key)
 
         if (isCombiningMark) {
-            // أدخل العلامة بدون تحريك المؤشر لتدمج مع الحرف السابق
             ic.commitText(key, 0)
         } else {
-            // أدخل الحرف أو الرمز العادي مع تحريك المؤشر
             ic.commitText(key, 1)
         }
     }
