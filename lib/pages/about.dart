@@ -83,17 +83,7 @@ class CoreTeam extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
 
-              const Text(
-                'مطور تطبيقات Flutter وتقنية المعلومات',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.white70,
-                  fontFamily: "Cairo",
-                ),
-                textAlign: TextAlign.center,
-              ),
 
               const SizedBox(height: 28),
 

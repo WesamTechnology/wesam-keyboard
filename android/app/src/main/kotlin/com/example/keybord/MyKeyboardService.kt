@@ -125,6 +125,7 @@ class MyKeyboardService : InputMethodService() {
         pasteButton.setBackgroundColor(0xFF4A6FA5.toInt())
         pasteButton.setTextColor(0xFFFFFFFF.toInt())
         pasteButton.textSize = 16f
+        pasteButton.setOnTouchListener(getOnTouchListener(pasteButton, 0xFF4A6FA5.toInt(), 0xFF3A5F95.toInt()))
         pasteButton.setOnClickListener { pasteWordByWord() }
 
         val copyButton = Button(this)
@@ -132,6 +133,7 @@ class MyKeyboardService : InputMethodService() {
         copyButton.setBackgroundColor(0xFF4A6FA5.toInt())
         copyButton.setTextColor(0xFFFFFFFF.toInt())
         copyButton.textSize = 16f
+        copyButton.setOnTouchListener(getOnTouchListener(copyButton, 0xFF4A6FA5.toInt(), 0xFF3A5F95.toInt()))
         copyButton.setOnClickListener { copySelectedText() }
 
         val langButton = Button(this)
@@ -139,6 +141,7 @@ class MyKeyboardService : InputMethodService() {
         langButton.setBackgroundColor(0xFF4A6FA5.toInt())
         langButton.setTextColor(0xFFFFFFFF.toInt())
         langButton.textSize = 16f
+        langButton.setOnTouchListener(getOnTouchListener(langButton, 0xFF4A6FA5.toInt(), 0xFF3A5F95.toInt()))
         langButton.setOnClickListener {
             isArabic = !isArabic
             isSymbols = false
@@ -153,6 +156,7 @@ class MyKeyboardService : InputMethodService() {
         symbolButton.setBackgroundColor(0xFF4A6FA5.toInt())
         symbolButton.setTextColor(0xFFFFFFFF.toInt())
         symbolButton.textSize = 16f
+        symbolButton.setOnTouchListener(getOnTouchListener(symbolButton, 0xFF4A6FA5.toInt(), 0xFF3A5F95.toInt()))
         symbolButton.setOnClickListener {
             isSymbols = !isSymbols
             isTajweed = false
@@ -164,6 +168,7 @@ class MyKeyboardService : InputMethodService() {
         tajweedButton.setBackgroundColor(0xFF4A6FA5.toInt())
         tajweedButton.setTextColor(0xFFFFFFFF.toInt())
         tajweedButton.textSize = 16f
+        tajweedButton.setOnTouchListener(getOnTouchListener(tajweedButton, 0xFF4A6FA5.toInt(), 0xFF3A5F95.toInt()))
         tajweedButton.setOnClickListener {
             isTajweed = !isTajweed
             isSymbols = false
@@ -234,6 +239,7 @@ class MyKeyboardService : InputMethodService() {
         enterButton.text = "⏎"
         enterButton.setBackgroundColor(0xFFFFFFFF.toInt())
         enterButton.textSize = 18f
+        enterButton.setOnTouchListener(getOnTouchListener(enterButton, 0xFFFFFFFF.toInt(), 0xFFE0E0E0.toInt()))
         enterButton.setOnClickListener {
             currentInputConnection.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER))
         }
@@ -246,6 +252,7 @@ class MyKeyboardService : InputMethodService() {
         }
         space.setBackgroundColor(0xFFFFFFFF.toInt())
         space.textSize = 18f
+        space.setOnTouchListener(getOnTouchListener(space, 0xFFFFFFFF.toInt(), 0xFFE0E0E0.toInt()))
         space.setOnClickListener { currentInputConnection.commitText(" ", 1) }
 
         bottomRow.addView(enterButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.3f))
@@ -275,13 +282,20 @@ class MyKeyboardService : InputMethodService() {
             }
         }
 
+        val normalColor = 0xFFFFFFFF.toInt()
+        val pressedColor = 0xFFE0E0E0.toInt()
+        
         delete.setOnTouchListener { v, event ->
             when (event.action) {
                 android.view.MotionEvent.ACTION_DOWN -> {
+                    v.animate().scaleX(0.9f).scaleY(0.9f).setDuration(50).start()
+                    v.setBackgroundColor(pressedColor)
                     v.isPressed = true
                     v.post(deleteRunnable)
                 }
                 android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(50).start()
+                    v.setBackgroundColor(normalColor)
                     v.isPressed = false
                     v.removeCallbacks(deleteRunnable)
                 }
@@ -300,13 +314,21 @@ class MyKeyboardService : InputMethodService() {
         shiftButton.text = "⬆"
         shiftButton.textSize = 18f
 
+        val normalColor: Int
+        val pressedColor: Int
+
         if (isCaps) {
-            shiftButton.setBackgroundColor(0xFF4A6FA5.toInt())
+            normalColor = 0xFF4A6FA5.toInt()
+            pressedColor = 0xFF3A5F95.toInt()
             shiftButton.setTextColor(Color.WHITE)
         } else {
-            shiftButton.setBackgroundColor(0xFFFFFFFF.toInt())
+            normalColor = 0xFFFFFFFF.toInt()
+            pressedColor = 0xFFE0E0E0.toInt()
             shiftButton.setTextColor(Color.BLACK)
         }
+        shiftButton.setBackgroundColor(normalColor)
+        
+        shiftButton.setOnTouchListener(getOnTouchListener(shiftButton, normalColor, pressedColor))
 
         shiftButton.setOnClickListener {
             isCaps = !isCaps
@@ -320,14 +342,35 @@ class MyKeyboardService : InputMethodService() {
         return shiftButton
     }
 
+    private fun getOnTouchListener(view: View, normalColor: Int, pressedColor: Int): View.OnTouchListener {
+        return View.OnTouchListener { v, event ->
+            when (event.action) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    v.animate().scaleX(0.9f).scaleY(0.9f).setDuration(50).start()
+                    v.setBackgroundColor(pressedColor)
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(50).start()
+                    v.setBackgroundColor(normalColor)
+                }
+            }
+            false // Return false to let OnClickListener handle the click
+        }
+    }
+
     private fun makeKeyButton(key: String): Button {
         val button = Button(this)
         button.text = key
         button.textSize = 20f
         button.setTextColor(0xFF1B1B1B.toInt())
-        button.setBackgroundColor(0xFFFFFFFF.toInt())
+        val normalColor = 0xFFFFFFFF.toInt()
+        val pressedColor = 0xFFE0E0E0.toInt()
+        button.setBackgroundColor(normalColor)
         button.setPadding(8, 16, 8, 16)
         button.isAllCaps = false
+        
+        // Apply scale animation
+        button.setOnTouchListener(getOnTouchListener(button, normalColor, pressedColor))
 
         if (key == "ا") {
             button.setOnLongClickListener {
