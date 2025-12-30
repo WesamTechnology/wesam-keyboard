@@ -4,6 +4,8 @@
 
     <!-- ✅ صلاحية الإنترنت لتفعيل Supabase -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 🎤 صلاحية تسجيل الصوت -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- ✅ صلاحية إنشاء كيبورد -->
     <uses-permission

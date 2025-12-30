@@ -9,6 +9,14 @@ import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.InputConnection
 import android.widget.*
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.os.Bundle
+import android.content.pm.PackageManager
+import android.Manifest
+import android.os.Handler
+import android.os.Looper
 
 class MyKeyboardService : InputMethodService() {
 
@@ -19,7 +27,77 @@ class MyKeyboardService : InputMethodService() {
 
     // ✅ متغير لتخزين العرض الرئيسي للكيبورد للوصول إليه لاحقًا
     private var mainKeyboardView: LinearLayout? = null
+    
+    // ✅ زر التسجيل لتغيير شكله لاحقًا
+    private var recordButton: Button? = null // New property
+    
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var speechIntent: Intent? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA") // ضبط اللغة للعربية
+        }
+        setRecognitionListener()
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        speechRecognizer?.destroy()
+    }
+
+    private fun setRecognitionListener() {
+        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                Toast.makeText(applicationContext, "تحدث الآن... 🎙️", Toast.LENGTH_SHORT).show()
+                updateRecordButtonState(true) // Start Animation
+            }
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {
+                updateRecordButtonState(false) // End Animation
+            }
+            override fun onError(error: Int) {
+                 val errorMessage = when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH -> "لم يتم التعرف على الكلام"
+                    SpeechRecognizer.ERROR_NETWORK -> "خطأ في الشبكة"
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "يرجى منح صلاحية الميكروفون"
+                    else -> "خطأ في التسجيل: $error"
+                }
+                Toast.makeText(applicationContext, errorMessage, Toast.LENGTH_SHORT).show()
+                updateRecordButtonState(false) // Reset on Error
+            }
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    val text = matches[0]
+                    typeTextWordByWord(text)
+                }
+                updateRecordButtonState(false) // Ensure reset
+            }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+    }
+    
+    // كتابة النص كلمة كلمة (نفس فكرة النسخ)
+    private fun typeTextWordByWord(text: String) {
+        val inputConnection = currentInputConnection ?: return
+        val words = text.split(" ")
+        Thread {
+            for (word in words) {
+                // نستخدم Handler للتأكد من الكتابة على الـ Main Thread إذا لزم الأمر، 
+                // ولكن inputConnection عادة يعمل من أي Thread. لتجنب المشاكل سنبقيها بسيطة.
+                // لكن لتحديث الـ UI (لو أردنا) نحتاج Main Thread. هنا فقط نرسل نص.
+                inputConnection.commitText("$word ", 1)
+                Thread.sleep(150) // سرعة الكتابة
+            }
+        }.start()
+    }
     private val arabicKeys = arrayOf(
         arrayOf("د", "ج", "ح", "خ", "ه", "ع", "غ", "ف", "ق", "ث", "ص", "ض"),
         arrayOf("ط", "ك", "م", "ن", "ت", "ا", "ل", "ب", "ي", "س", "ش"),
@@ -56,6 +134,40 @@ class MyKeyboardService : InputMethodService() {
     private fun isActivated(context: Context): Boolean {
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         return prefs.getBoolean("flutter.isActivated", prefs.getBoolean("isActivated", false))
+    }
+    
+    private fun updateRecordButtonState(isRecording: Boolean) {
+        val btn = recordButton ?: return
+        if (isRecording) {
+            btn.text = "🔴" // رمز التسجيل
+            btn.setBackgroundColor(0xFFFF0000.toInt()) // لون أحمر
+            // تحديث المستمع للون الأحمر عند الضغط (اختياري، لكن جيد للتناسق)
+            btn.setOnTouchListener(getOnTouchListener(btn, 0xFFFF0000.toInt(), 0xFFCC0000.toInt()))
+        } else {
+            btn.text = "🎙️" // الرمز الأصلي
+            btn.setBackgroundColor(0xFF4A6FA5.toInt()) // العودة للأزرق
+            btn.setOnTouchListener(getOnTouchListener(btn, 0xFF4A6FA5.toInt(), 0xFF3A5F95.toInt()))
+        }
+    }
+
+    private fun startVoiceRecognition() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                speechRecognizer?.startListening(speechIntent)
+            } catch (e: Exception) {
+                Toast.makeText(this, "خطأ: ${e.message}", Toast.LENGTH_SHORT).show()
+                updateRecordButtonState(false) // Reset on error
+            }
+        } else {
+            Toast.makeText(this, "يرجى منح صلاحية الميكروفون للتطبيق", Toast.LENGTH_LONG).show()
+            updateRecordButtonState(false) // Reset
+            // لا يمكن طلب الصلاحيات runtime من داخل خدمة الكيبورد بسهولة في أندرويد الحديث،
+            // يجب على المستخدم تفعيلها من الإعدادات.
+            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = android.net.Uri.parse("package:$packageName")
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        }
     }
 
     override fun onCreateInputView(): View {
@@ -174,10 +286,21 @@ class MyKeyboardService : InputMethodService() {
             isSymbols = false
             updateKeyboard(mainLayout)
         }
+        
+        val _recordButton = Button(this) // Use temporary variable
+        _recordButton.text = "🎙️"
+        _recordButton.setBackgroundColor(0xFF4A6FA5.toInt())
+        _recordButton.setTextColor(0xFFFFFFFF.toInt())
+        _recordButton.textSize = 16f
+        _recordButton.setOnTouchListener(getOnTouchListener(_recordButton, 0xFF4A6FA5.toInt(), 0xFF3A5F95.toInt()))
+        _recordButton.setOnClickListener { startVoiceRecognition() }
+        
+        recordButton = _recordButton // Assign to property
 
         topBar.addView(pasteButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         topBar.addView(copyButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         topBar.addView(langButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f))
+        topBar.addView(_recordButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f))
         topBar.addView(symbolButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.4f))
         topBar.addView(tajweedButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.6f))
         mainLayout.addView(topBar)
